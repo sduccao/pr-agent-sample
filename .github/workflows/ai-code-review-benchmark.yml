@@ -74,32 +74,21 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
         run: |
-          if [ -n "$GEMINI_API_KEY" ]; then
+          if [ -n "$GEMINI_API_KEY" ] || [ -n "$OPENAI_KEY" ]; then
             echo "has_key=true" >> $GITHUB_OUTPUT
-            echo "use_gemini=true" >> $GITHUB_OUTPUT
-          elif [ -n "$OPENAI_KEY" ]; then
-            echo "has_key=true" >> $GITHUB_OUTPUT
-            echo "use_gemini=false" >> $GITHUB_OUTPUT
           else
             echo "has_key=false" >> $GITHUB_OUTPUT
             echo "::warning::Neither GEMINI_API_KEY nor OPENAI_KEY is configured in repository secrets."
           fi
 
-      - name: Run The-PR-Agent Action (Gemini API)
-        if: steps.check_keys.outputs.has_key == 'true' && steps.check_keys.outputs.use_gemini == 'true'
+      - name: Run The-PR-Agent Action
+        if: steps.check_keys.outputs.has_key == 'true'
         uses: The-PR-Agent/pr-agent@main
         env:
+          OPENAI_KEY: ${{ secrets.GEMINI_API_KEY || secrets.OPENAI_KEY }}
+          OPENAI_API_KEY: ${{ secrets.GEMINI_API_KEY || secrets.OPENAI_KEY }}
           GEMINI.KEY: ${{ secrets.GEMINI_API_KEY }}
-          CONFIG.MODEL: "google/gemini-3.6-flash"
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_REVIEWER.REQUIRE_CANVAS_REVIEW: "false"
-          PR_REVIEWER.EXTRA_INSTRUCTIONS: "Focus on Go concurrency, memory leaks, SQL injection, and line position drift accuracy."
-
-      - name: Run The-PR-Agent Action (OpenAI API)
-        if: steps.check_keys.outputs.has_key == 'true' && steps.check_keys.outputs.use_gemini == 'false'
-        uses: The-PR-Agent/pr-agent@main
-        env:
-          OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
+          CONFIG.MODEL: ${{ secrets.GEMINI_API_KEY && 'google/gemini-2.5-flash' || 'gpt-4o' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_REVIEWER.REQUIRE_CANVAS_REVIEW: "false"
           PR_REVIEWER.EXTRA_INSTRUCTIONS: "Focus on Go concurrency, memory leaks, SQL injection, and line position drift accuracy."
