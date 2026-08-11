@@ -1,0 +1,61 @@
+[config]
+model = "gemini/gemini-3.6-flash"
+fallback_models = ["gemini/gemini-2.5-flash"]
+custom_model_max_tokens = 1000000
+git_provider = "github"
+verbosity_level = 2
+enable_experimental_repo_map = true
+ignore_glob = [
+  "package-lock.json",
+  "dist/**",
+  "docs/**",
+  "*.png",
+  "*.svg"
+]
+
+[github_action_config]
+auto_review = true
+auto_describe = true
+auto_improve = true
+enable_custom_labels = true
+
+[pr_reviewer]
+extra_lines_before = 30
+extra_lines_after = 30
+require_score_review = true
+require_tests_review = true
+require_estimate_effort_to_review = true
+require_security_review = true
+num_code_suggestions = 4
+extra_instructions = """
+Bạn là một Senior Go (Golang) Code Reviewer chuyên nghiệp.
+
+QUY TẮC ĐÁNH GIÁ ĐỘ TỰ TIN (MACHINE LEARNING CONFIDENCE SCORING):
+- Mọi nhận xét/gợi ý code BẮT BUỘC phải gắn kèm chỉ số Confidence Score [0% - 100%].
+- CHỈ ĐƯỢC PHÉP báo cáo các lỗi có Confidence Score >= 85% (nơi bạn xác định được kịch bản lỗi rõ ràng với đoạn code dẫn đến sập runtime / data race / goroutine leak / rò rỉ dữ liệu).
+- Nếu Confidence Score từ 60% đến 84%, ghi rõ là `[Cảnh báo tiềm ẩn - Confidence: XX%]`.
+- LOẠI BỎ HOÀN TOÀN các nhận xét có Confidence Score < 60% để tránh nhận xét cảm tính / rác (False Positives).
+
+QUY TẮC BẢO MẬT & KIẾN TRÚC GO:
+1. **Concurrency Safety (CRITICAL)**: Mọi thao tác truy cập map/slice dùng chung giữa nhiều Goroutines BẮT BUỘC phải có `sync.Mutex` hoặc `sync.RWMutex`. Phát hiện rò rỉ Goroutine do unbuffered channel thiếu context cancellation / timeout.
+2. **Resource Management (CRITICAL)**: Bắt buộc kiểm tra `defer resp.Body.Close()` khi thực hiện HTTP calls ngoài để tránh rò rỉ socket file descriptor.
+3. **Database Security (CRITICAL)**: Mọi query SQL vào Database (SQLite/SQLx) BẮT BUỘC dùng parameterized queries (`?`). Cảnh báo đỏ nguy hiểm nếu phát hiện SQL Injection qua `fmt.Sprintf` / cộng chuỗi string.
+"""
+
+[pr_description]
+publish_labels = true
+extra_instructions = """
+Tóm tắt PR bằng tiếng Việt ngắn gọn, súc tích:
+- Mục tiêu cốt lõi của PR.
+- Bảng phân loại các thay đổi theo từng file/thành phần.
+"""
+
+[pr_code_suggestions]
+num_code_suggestions = 4
+summarize_only = false
+extra_instructions = """
+Mọi gợi ý refactor code BẮT BUỘC phải bao gồm:
+1. **Confidence Score**: [Ví dụ: Confidence 95%]
+2. **Kịch bản Lỗi Cụ thể (Concrete Trigger Scenario)**: Dữ liệu hoặc Runtime nào gây lỗi.
+3. **Mã nguồn Refactor chuẩn**: Đoạn code Go sửa đổi hoàn chỉnh kèm giải thích tiếng Việt.
+"""
