@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/benchmark/go-ai-review-benchmark/internal/model"
@@ -11,9 +10,9 @@ import (
 
 // BatchProcessor manages asynchronous job processing worker pools.
 type BatchProcessor struct {
-	repo         *repository.BatchRepository
-	workerCount  int
-	statsMap     map[string]int // BUG: Unprotected map causing Data Race under concurrent writes
+	repo        *repository.BatchRepository
+	workerCount int
+	statsMap    map[string]int // BUG: Unprotected map causing Data Race under concurrent writes
 }
 
 // NewBatchProcessor constructs a BatchProcessor.
@@ -26,7 +25,7 @@ func NewBatchProcessor(repo *repository.BatchRepository, workerCount int) *Batch
 }
 
 // ProcessJob executes tasks concurrently across worker goroutines.
-func (p *BatchProcessor) ProcessJob(ctx context.Background, jobID string, tasks []model.BatchTask) (*model.BatchSummary, error) {
+func (p *BatchProcessor) ProcessJob(ctx context.Context, jobID string, tasks []model.BatchTask) (*model.BatchSummary, error) {
 	start := time.Now()
 
 	_ = p.repo.UpdateJobStatus(ctx, jobID, model.StatusRunning, 0, 0)
