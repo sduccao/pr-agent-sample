@@ -1,0 +1,28 @@
+# Binaries for SDKs and apps
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary built using `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+
+# SQLite database files
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE / OS files
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,83 @@
+name: AI Code Review Benchmark (Alibaba OCR vs PR-Agent)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created]
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: Alibaba Open Code Review (OCR)
+  # ---------------------------------------------------------------------------
+  alibaba-open-code-review:
+    name: Alibaba Open Code Review (OCR)
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go Environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Verify Go Build & Test
+        run: |
+          go version
+          go test -v ./...
+
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install & Run Alibaba Open Code Review CLI
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "::warning::OPENAI_API_KEY is not configured in repository secrets. Skipping live OCR API call."
+            echo "To enable Alibaba OCR reviews, add OPENAI_API_KEY to your GitHub repository secrets."
+            exit 0
+          fi
+
+          echo "Installing @alibaba-group/open-code-review..."
+          npm install -g @alibaba-group/open-code-review
+
+          echo "Running Alibaba Open Code Review..."
+          git fetch origin ${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }} || true
+          ocr review --from origin/${{ github.base_ref }} --to HEAD
+
+  # ---------------------------------------------------------------------------
+  # Job 2: CodiumAI PR-Agent
+  # ---------------------------------------------------------------------------
+  codiumai-pr-agent:
+    name: CodiumAI PR-Agent Review
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Secret Availability
+        id: check_keys
+        env:
+          OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
+        run: |
+          if [ -z "$OPENAI_KEY" ]; then
+            echo "has_key=false" >> $GITHUB_OUTPUT
+            echo "::warning::OPENAI_KEY is not configured in repository secrets. Skipping live PR-Agent run."
+            echo "To enable CodiumAI PR-Agent, add OPENAI_KEY to your GitHub repository secrets."
+          else
+            echo "has_key=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run CodiumAI PR-Agent Action
+        if: steps.check_keys.outputs.has_key == 'true'
+        uses: CodiumAI/pr-agent-action@v2
+        env:
+          OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_REVIEWER.REQUIRE_CANVAS_REVIEW: "false"
+          PR_REVIEWER.EXTRA_INSTRUCTIONS: "Focus on Go concurrency, memory leaks, SQL injection, and line position drift accuracy."
