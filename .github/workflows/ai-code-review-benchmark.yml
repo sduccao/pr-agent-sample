@@ -17,7 +17,7 @@ jobs:
   # ---------------------------------------------------------------------------
   alibaba-open-code-review:
     name: Alibaba Open Code Review (OCR)
-    if: ${{ github.event_name == 'pull_request' }}
+    if: ${{ github.event_name == 'pull_request' && github.event.sender.type != 'Bot' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -42,22 +42,20 @@ jobs:
 
       - name: Install & Run Alibaba Open Code Review CLI
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || secrets.GEMINI_KEY || secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.GEMINI_API_KEY || secrets.GEMINI_KEY || secrets.OPENAI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           API_KEY="${GEMINI_API_KEY:-$OPENAI_API_KEY}"
           if [ -z "$API_KEY" ]; then
-            echo "::warning::Neither GEMINI_API_KEY nor OPENAI_API_KEY is configured in repository secrets."
-            echo "To enable Alibaba OCR reviews, set GEMINI_API_KEY or OPENAI_API_KEY in GitHub secrets."
+            echo "::warning::Neither GEMINI_API_KEY, GEMINI_KEY nor OPENAI_API_KEY is configured in repository secrets."
+            echo "To enable Alibaba OCR reviews, set GEMINI_API_KEY in GitHub secrets."
             exit 0
           fi
 
           export OPENAI_API_KEY="$API_KEY"
-          if [ -n "$GEMINI_API_KEY" ]; then
-            export OPENAI_BASE_URL="https://generativelanguage.googleapis.com/v1beta/openai/"
-            export OPENAI_MODEL="gemini-3.6-flash"
-          fi
+          export OPENAI_BASE_URL="https://generativelanguage.googleapis.com/v1beta/openai/"
+          export OPENAI_MODEL="gemini-3.6-flash"
 
           echo "Installing @alibaba-group/open-code-review..."
           npm install -g @alibaba-group/open-code-review
@@ -70,35 +68,19 @@ jobs:
   # Job 2: The-PR-Agent
   # ---------------------------------------------------------------------------
   the-pr-agent:
-    name: The-PR-Agent Review
+    name: Run PR-Agent
+    if: ${{ github.event.sender.type != 'Bot' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Check Secret Availability
-        id: check_keys
+      - name: PR-Agent Action Step
+        id: pragent
+        uses: the-pr-agent/pr-agent@main
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
-        run: |
-          if [ -n "$GEMINI_API_KEY" ] || [ -n "$OPENAI_KEY" ]; then
-            echo "has_key=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_key=false" >> $GITHUB_OUTPUT
-            echo "::warning::Neither GEMINI_API_KEY nor OPENAI_KEY is configured in repository secrets."
-          fi
-
-      - name: Run The-PR-Agent Action
-        if: steps.check_keys.outputs.has_key == 'true'
-        uses: The-PR-Agent/pr-agent@main
-        env:
-          OPENAI_KEY: ${{ secrets.GEMINI_API_KEY || secrets.OPENAI_KEY }}
-          OPENAI_API_KEY: ${{ secrets.GEMINI_API_KEY || secrets.OPENAI_KEY }}
-          GEMINI.KEY: ${{ secrets.GEMINI_API_KEY }}
-          CONFIG.MODEL: ${{ secrets.GEMINI_API_KEY && 'google/gemini-2.5-flash' || 'gpt-4o' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_ACTION_CONFIG.AUTO_REVIEW: "true"
-          GITHUB_ACTION_CONFIG.AUTO_DESCRIBE: "true"
-          GITHUB_ACTION_CONFIG.AUTO_IMPROVE: "true"
-          GITHUB_ACTION_CONFIG.PUSH_TRIGGER_IGNORE_MERGE_COMMITS: "false"
-          GITHUB_ACTION_CONFIG.PUSH_TRIGGER_IGNORE_BOT_COMMITS: "false"
+          GEMINI_KEY: ${{ secrets.GEMINI_API_KEY || secrets.GEMINI_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || secrets.GEMINI_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GEMINI_API_KEY || secrets.GEMINI_KEY }}
+          OPENAI_KEY: ${{ secrets.GEMINI_API_KEY || secrets.GEMINI_KEY || secrets.OPENAI_KEY }}
+          PR_AGENT.MODEL: "gemini/gemini-3.6-flash"
           PR_REVIEWER.REQUIRE_CANVAS_REVIEW: "false"
           PR_REVIEWER.EXTRA_INSTRUCTIONS: "Focus on Go concurrency, memory leaks, SQL injection, and line position drift accuracy."
