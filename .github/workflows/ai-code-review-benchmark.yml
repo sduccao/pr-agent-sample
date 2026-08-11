@@ -37,13 +37,21 @@ jobs:
 
       - name: Install & Run Alibaba Open Code Review CLI
         env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ -z "$OPENAI_API_KEY" ]; then
-            echo "::warning::OPENAI_API_KEY is not configured in repository secrets. Skipping live OCR API call."
-            echo "To enable Alibaba OCR reviews, add OPENAI_API_KEY to your GitHub repository secrets."
+          API_KEY="${GEMINI_API_KEY:-$OPENAI_API_KEY}"
+          if [ -z "$API_KEY" ]; then
+            echo "::warning::Neither GEMINI_API_KEY nor OPENAI_API_KEY is configured in repository secrets."
+            echo "To enable Alibaba OCR reviews, set GEMINI_API_KEY or OPENAI_API_KEY in GitHub secrets."
             exit 0
+          fi
+
+          export OPENAI_API_KEY="$API_KEY"
+          if [ -n "$GEMINI_API_KEY" ]; then
+            export OPENAI_BASE_URL="https://generativelanguage.googleapis.com/v1beta/openai/"
+            export OPENAI_MODEL="gemini-2.5-flash"
           fi
 
           echo "Installing @alibaba-group/open-code-review..."
@@ -63,21 +71,36 @@ jobs:
       - name: Check Secret Availability
         id: check_keys
         env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
         run: |
-          if [ -z "$OPENAI_KEY" ]; then
-            echo "has_key=false" >> $GITHUB_OUTPUT
-            echo "::warning::OPENAI_KEY is not configured in repository secrets. Skipping live PR-Agent run."
-            echo "To enable CodiumAI PR-Agent, add OPENAI_KEY to your GitHub repository secrets."
-          else
+          if [ -n "$GEMINI_API_KEY" ]; then
             echo "has_key=true" >> $GITHUB_OUTPUT
+            echo "use_gemini=true" >> $GITHUB_OUTPUT
+          elif [ -n "$OPENAI_KEY" ]; then
+            echo "has_key=true" >> $GITHUB_OUTPUT
+            echo "use_gemini=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_key=false" >> $GITHUB_OUTPUT
+            echo "::warning::Neither GEMINI_API_KEY nor OPENAI_KEY is configured in repository secrets."
           fi
 
-      - name: Run CodiumAI PR-Agent Action
-        if: steps.check_keys.outputs.has_key == 'true'
+      - name: Run CodiumAI PR-Agent Action (Gemini API)
+        if: steps.check_keys.outputs.has_key == 'true' && steps.check_keys.outputs.use_gemini == 'true'
+        uses: CodiumAI/pr-agent-action@v2
+        env:
+          GEMINI.KEY: ${{ secrets.GEMINI_API_KEY }}
+          CONFIG.MODEL: "google/gemini-2.5-flash"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_REVIEWER.REQUIRE_CANVAS_REVIEW: "false"
+          PR_REVIEWER.EXTRA_INSTRUCTIONS: "Focus on Go concurrency, memory leaks, SQL injection, and line position drift accuracy."
+
+      - name: Run CodiumAI PR-Agent Action (OpenAI API)
+        if: steps.check_keys.outputs.has_key == 'true' && steps.check_keys.outputs.use_gemini == 'false'
         uses: CodiumAI/pr-agent-action@v2
         env:
           OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_REVIEWER.REQUIRE_CANVAS_REVIEW: "false"
           PR_REVIEWER.EXTRA_INSTRUCTIONS: "Focus on Go concurrency, memory leaks, SQL injection, and line position drift accuracy."
+
