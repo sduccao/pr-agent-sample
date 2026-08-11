@@ -38,11 +38,10 @@ jobs:
       - name: OpenCodeReview Action Step
         uses: alibaba/open-code-review@main
         with:
-          llm_url: "https://generativelanguage.googleapis.com/v1beta/openai/"
+          llm_url: "https://generativelanguage.googleapis.com/v1beta/openai/v1"
           llm_auth_token: ${{ secrets.GEMINI_API_KEY || secrets.GEMINI_KEY || secrets.OPENAI_API_KEY }}
           llm_model: "gemini-2.5-flash"
           llm_use_anthropic: "false"
-          llm_extra_body: "{}"
           language: "English"
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
