@@ -51,7 +51,7 @@ jobs:
           export OPENAI_API_KEY="$API_KEY"
           if [ -n "$GEMINI_API_KEY" ]; then
             export OPENAI_BASE_URL="https://generativelanguage.googleapis.com/v1beta/openai/"
-            export OPENAI_MODEL="gemini-2.5-flash"
+            export OPENAI_MODEL="gemini-3.6-flash"
           fi
 
           echo "Installing @alibaba-group/open-code-review..."
@@ -62,10 +62,10 @@ jobs:
           ocr review --from origin/${{ github.base_ref }} --to HEAD
 
   # ---------------------------------------------------------------------------
-  # Job 2: CodiumAI PR-Agent
+  # Job 2: The-PR-Agent
   # ---------------------------------------------------------------------------
-  codiumai-pr-agent:
-    name: CodiumAI PR-Agent Review
+  the-pr-agent:
+    name: The-PR-Agent Review
     runs-on: ubuntu-latest
     steps:
       - name: Check Secret Availability
@@ -85,22 +85,21 @@ jobs:
             echo "::warning::Neither GEMINI_API_KEY nor OPENAI_KEY is configured in repository secrets."
           fi
 
-      - name: Run CodiumAI PR-Agent Action (Gemini API)
+      - name: Run The-PR-Agent Action (Gemini API)
         if: steps.check_keys.outputs.has_key == 'true' && steps.check_keys.outputs.use_gemini == 'true'
-        uses: CodiumAI/pr-agent-action@v2
+        uses: The-PR-Agent/pr-agent@main
         env:
           GEMINI.KEY: ${{ secrets.GEMINI_API_KEY }}
-          CONFIG.MODEL: "google/gemini-2.5-flash"
+          CONFIG.MODEL: "google/gemini-3.6-flash"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_REVIEWER.REQUIRE_CANVAS_REVIEW: "false"
           PR_REVIEWER.EXTRA_INSTRUCTIONS: "Focus on Go concurrency, memory leaks, SQL injection, and line position drift accuracy."
 
-      - name: Run CodiumAI PR-Agent Action (OpenAI API)
+      - name: Run The-PR-Agent Action (OpenAI API)
         if: steps.check_keys.outputs.has_key == 'true' && steps.check_keys.outputs.use_gemini == 'false'
-        uses: CodiumAI/pr-agent-action@v2
+        uses: The-PR-Agent/pr-agent@main
         env:
           OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_REVIEWER.REQUIRE_CANVAS_REVIEW: "false"
           PR_REVIEWER.EXTRA_INSTRUCTIONS: "Focus on Go concurrency, memory leaks, SQL injection, and line position drift accuracy."
-
