@@ -29,6 +29,7 @@ func (r *BatchRepository) InitSchema(ctx context.Context) error {
 		total_items INTEGER DEFAULT 0,
 		processed INTEGER DEFAULT 0,
 		failed INTEGER DEFAULT 0,
+		priority INTEGER DEFAULT 0,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
@@ -39,6 +40,7 @@ func (r *BatchRepository) InitSchema(ctx context.Context) error {
 		payload TEXT NOT NULL,
 		status TEXT NOT NULL,
 		retries INTEGER DEFAULT 0,
+		metadata TEXT DEFAULT '',
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (job_id) REFERENCES batch_jobs(id)
 	);`
@@ -48,10 +50,10 @@ func (r *BatchRepository) InitSchema(ctx context.Context) error {
 
 // CreateJob inserts a new BatchJob entry into database.
 func (r *BatchRepository) CreateJob(ctx context.Context, job *model.BatchJob) error {
-	query := `INSERT INTO batch_jobs (id, name, status, total_items, processed, failed, created_at, updated_at) 
-	          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	query := `INSERT INTO batch_jobs (id, name, status, total_items, processed, failed, priority, created_at, updated_at) 
+	          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	now := time.Now()
-	_, err := r.db.ExecContext(ctx, query, job.ID, job.Name, string(job.Status), job.TotalItems, job.Processed, job.Failed, now, now)
+	_, err := r.db.ExecContext(ctx, query, job.ID, job.Name, string(job.Status), job.TotalItems, job.Processed, job.Failed, job.Priority, now, now)
 	if err != nil {
 		return fmt.Errorf("batch repository CreateJob: %w", err)
 	}
@@ -61,7 +63,7 @@ func (r *BatchRepository) CreateJob(ctx context.Context, job *model.BatchJob) er
 // GetJobByID retrieves a BatchJob by its ID.
 func (r *BatchRepository) GetJobByID(ctx context.Context, jobID string) (*model.BatchJob, error) {
 	var job model.BatchJob
-	query := `SELECT id, name, status, total_items, processed, failed, created_at, updated_at FROM batch_jobs WHERE id = ?`
+	query := `SELECT id, name, status, total_items, processed, failed, priority, created_at, updated_at FROM batch_jobs WHERE id = ?`
 	err := r.db.GetContext(ctx, &job, query, jobID)
 	if err != nil {
 		return nil, fmt.Errorf("batch repository GetJobByID: %w", err)
@@ -71,7 +73,7 @@ func (r *BatchRepository) GetJobByID(ctx context.Context, jobID string) (*model.
 
 // SaveTasks batch inserts tasks for a job.
 func (r *BatchRepository) SaveTasks(ctx context.Context, tasks []model.BatchTask) error {
-	query := `INSERT INTO batch_tasks (job_id, payload, status, retries, created_at) VALUES (?, ?, ?, ?, ?)`
+	query := `INSERT INTO batch_tasks (job_id, payload, status, retries, metadata, created_at) VALUES (?, ?, ?, ?, ?, ?)`
 	now := time.Now()
 	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
@@ -86,7 +88,7 @@ func (r *BatchRepository) SaveTasks(ctx context.Context, tasks []model.BatchTask
 	defer stmt.Close()
 
 	for _, task := range tasks {
-		_, err := stmt.ExecContext(ctx, task.JobID, task.Payload, task.Status, task.Retries, now)
+		_, err := stmt.ExecContext(ctx, task.JobID, task.Payload, task.Status, task.Retries, task.Metadata, now)
 		if err != nil {
 			return fmt.Errorf("batch repository InsertTask: %w", err)
 		}
