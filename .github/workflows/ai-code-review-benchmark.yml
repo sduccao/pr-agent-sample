@@ -6,6 +6,11 @@ on:
   issue_comment:
     types: [created]
 
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
 jobs:
   # ---------------------------------------------------------------------------
   # Job 1: Alibaba Open Code Review (OCR)
@@ -90,5 +95,10 @@ jobs:
           GEMINI.KEY: ${{ secrets.GEMINI_API_KEY }}
           CONFIG.MODEL: ${{ secrets.GEMINI_API_KEY && 'google/gemini-2.5-flash' || 'gpt-4o' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTION_CONFIG.AUTO_REVIEW: "true"
+          GITHUB_ACTION_CONFIG.AUTO_DESCRIBE: "true"
+          GITHUB_ACTION_CONFIG.AUTO_IMPROVE: "true"
+          GITHUB_ACTION_CONFIG.PUSH_TRIGGER_IGNORE_MERGE_COMMITS: "false"
+          GITHUB_ACTION_CONFIG.PUSH_TRIGGER_IGNORE_BOT_COMMITS: "false"
           PR_REVIEWER.REQUIRE_CANVAS_REVIEW: "false"
           PR_REVIEWER.EXTRA_INSTRUCTIONS: "Focus on Go concurrency, memory leaks, SQL injection, and line position drift accuracy."
