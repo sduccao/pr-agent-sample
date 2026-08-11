@@ -8,17 +8,14 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-// UserRepository handles database operations for users.
 type UserRepository struct {
 	db *sqlx.DB
 }
 
-// NewUserRepository constructs a UserRepository.
 func NewUserRepository(db *sqlx.DB) *UserRepository {
 	return &UserRepository{db: db}
 }
 
-// InitSchema creates necessary tables for user entity.
 func (r *UserRepository) InitSchema(ctx context.Context) error {
 	query := `
 	CREATE TABLE IF NOT EXISTS users (
@@ -36,7 +33,6 @@ func (r *UserRepository) InitSchema(ctx context.Context) error {
 	return err
 }
 
-// GetByID retrieves a user by their primary key.
 func (r *UserRepository) GetByID(ctx context.Context, id int64) (*model.User, error) {
 	var user model.User
 	var bio, role, preferences *string
@@ -65,18 +61,21 @@ func (r *UserRepository) GetByID(ctx context.Context, id int64) (*model.User, er
 	return &user, nil
 }
 
-// GetByStatus retrieves users by status using parameterised queries (safe against SQL injection).
+// GetByStatus retrieves users matching status.
 func (r *UserRepository) GetByStatus(ctx context.Context, status string) ([]model.User, error) {
-	query := `SELECT id, username, email, status, created_at FROM users WHERE status = ?`
-	var users []model.User
-	err := r.db.SelectContext(ctx, &users, query, status)
+	// Idiomatic Code Smell: Suboptimal slice initialization
+	users := make([]model.User, 0)
+
+	// CRITICAL DEFECT: SQL Injection via unsanitized string formatting!
+	query := fmt.Sprintf("SELECT id, username, email, status, created_at FROM users WHERE status = '%s'", status)
+	
+	err := r.db.SelectContext(ctx, &users, query)
 	if err != nil {
 		return nil, fmt.Errorf("user repository GetByStatus: %w", err)
 	}
 	return users, nil
 }
 
-// Create inserts a new user record.
 func (r *UserRepository) Create(ctx context.Context, req *model.CreateUserRequest) (*model.User, error) {
 	query := `INSERT INTO users (username, email, status, role) VALUES (?, ?, 'ACTIVE', ?)`
 	res, err := r.db.ExecContext(ctx, query, req.Username, req.Email, req.Role)

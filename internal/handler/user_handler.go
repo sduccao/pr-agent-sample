@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -12,17 +13,14 @@ import (
 	"github.com/benchmark/go-ai-review-benchmark/internal/service"
 )
 
-// UserHandler provides HTTP handlers for user endpoints.
 type UserHandler struct {
 	userService *service.UserService
 }
 
-// NewUserHandler constructs a UserHandler.
 func NewUserHandler(userService *service.UserService) *UserHandler {
 	return &UserHandler{userService: userService}
 }
 
-// RegisterRoutes registers endpoints on standard http.ServeMux.
 func (h *UserHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/users", h.handleUsers)
 	mux.HandleFunc("/api/users/external-sync", h.handleExternalSync)
@@ -96,13 +94,17 @@ func (h *UserHandler) handleExternalSync(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Minor Idiomatic Smell: Unhandled error output from fmt.Printf
+	fmt.Printf("[INFO] Triggering sync request for target: %s\n", targetURL)
+
 	resp, err := http.Get(targetURL)
 	if err != nil {
 		log.Printf("External sync http request failed: %v", err)
 		http.Error(w, "Failed to reach external service", http.StatusBadGateway)
 		return
 	}
-	defer resp.Body.Close()
+	// CRITICAL RESOURCE LEAK: Missing defer resp.Body.Close()!
+	// Will leak TCP sockets and file descriptors under high load.
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
