@@ -25,8 +25,8 @@ This benchmark evaluates how both AI code review tools handle complex, real-worl
    ```
 
 2. Add your LLM provider keys in **GitHub Repository Settings → Secrets and variables → Actions**:
-   - `OPENAI_API_KEY`: Used by **Alibaba Open Code Review** (`ocr review`).
-   - `OPENAI_KEY`: Used by **CodiumAI PR-Agent Action**.
+   - `GEMINI_API_KEY`: Recommended. Works for both **Alibaba Open Code Review** (via Google OpenAI compatibility endpoint) and **CodiumAI PR-Agent** (natively using `gemini-2.5-flash`).
+   - Alternatively, you can use `OPENAI_API_KEY` (for Alibaba OCR) and `OPENAI_KEY` (for CodiumAI PR-Agent).
 
 ---
 
