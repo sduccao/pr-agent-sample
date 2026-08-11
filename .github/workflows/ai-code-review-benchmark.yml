@@ -35,13 +35,21 @@ jobs:
           go version
           go build ./...
 
+      # -----------------------------------------------------------------------
+      # Groq LLM Setup (Gemini commented out due to HTTP 429 Rate Limit)
+      # Gemini config:
+      #   llm_url: "https://generativelanguage.googleapis.com/v1beta/openai/"
+      #   llm_auth_token: ${{ secrets.GEMINI_API_KEY }}
+      #   llm_model: "gemini-3.6-flash"
+      # -----------------------------------------------------------------------
       - name: OpenCodeReview Action Step
         uses: alibaba/open-code-review@main
         with:
-          llm_url: "https://generativelanguage.googleapis.com/v1beta/openai/"
-          llm_auth_token: ${{ secrets.GEMINI_API_KEY || secrets.GEMINI_KEY || secrets.OPENAI_API_KEY }}
-          llm_model: "gemini-3.6-flash"
+          llm_url: "https://api.groq.com/openai/v1"
+          llm_auth_token: ${{ secrets.GROQ_API_KEY || secrets.GROQ_KEY }}
+          llm_model: "llama-3.3-70b-versatile"
           llm_use_anthropic: "false"
+          llm_extra_body: "{}"
           language: "English"
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -58,6 +66,13 @@ jobs:
         uses: the-pr-agent/pr-agent@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GEMINI_KEY: ${{ secrets.GEMINI_API_KEY || secrets.GEMINI_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || secrets.GEMINI_KEY }}
-          GOOGLE_API_KEY: ${{ secrets.GEMINI_API_KEY || secrets.GEMINI_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY || secrets.GROQ_KEY }}
+          OPENAI_API_KEY: ${{ secrets.GROQ_API_KEY || secrets.GROQ_KEY }}
+          OPENAI_BASE_URL: "https://api.groq.com/openai/v1"
+          PR_AGENT.MODEL: "groq/llama-3.3-70b-versatile"
+          github_action_config.auto_review: "true"
+          github_action_config.auto_describe: "true"
+          github_action_config.auto_improve: "true"
+          github_action_config.pr_actions: '["opened", "reopened", "synchronize"]'
+          PR_REVIEWER.REQUIRE_CANVAS_REVIEW: "false"
+          PR_REVIEWER.EXTRA_INSTRUCTIONS: "Focus on Go concurrency, memory leaks, SQL injection, and line position drift accuracy."
