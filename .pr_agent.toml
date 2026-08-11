@@ -1,7 +1,9 @@
 [config]
-model = "gemini/gemini-3.6-flash"
+# Temporary Groq configuration (Gemini commented out due to HTTP 429 Rate Limit)
+# model = "gemini/gemini-3.6-flash"
+model = "groq/llama-3.3-70b-versatile"
 fallback_models = []
-custom_model_max_tokens = 1000000
+custom_model_max_tokens = 128000
 git_provider = "github"
 verbosity_level = 2
 enable_experimental_repo_map = true
