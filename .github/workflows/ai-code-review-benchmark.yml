@@ -80,11 +80,3 @@ jobs:
           GEMINI_KEY: ${{ secrets.GEMINI_API_KEY || secrets.GEMINI_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || secrets.GEMINI_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GEMINI_API_KEY || secrets.GEMINI_KEY }}
-          OPENAI_KEY: ${{ secrets.GEMINI_API_KEY || secrets.GEMINI_KEY || secrets.OPENAI_KEY }}
-          PR_AGENT.MODEL: "gemini/gemini-3.6-flash"
-          github_action_config.auto_review: "true"
-          github_action_config.auto_describe: "true"
-          github_action_config.auto_improve: "true"
-          github_action_config.pr_actions: '["opened", "reopened", "synchronize"]'
-          PR_REVIEWER.REQUIRE_CANVAS_REVIEW: "false"
-          PR_REVIEWER.EXTRA_INSTRUCTIONS: "Focus on Go concurrency, memory leaks, SQL injection, and line position drift accuracy."
