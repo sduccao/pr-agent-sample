@@ -35,34 +35,15 @@ jobs:
           go version
           go build ./...
 
-      - name: Setup Node.js Environment
-        uses: actions/setup-node@v4
+      - name: OpenCodeReview Action Step
+        uses: alibaba/open-code-review@main
         with:
-          node-version: '20'
-
-      - name: Install & Run Alibaba Open Code Review CLI
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || secrets.GEMINI_KEY || secrets.OPENAI_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.GEMINI_API_KEY || secrets.GEMINI_KEY || secrets.OPENAI_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          API_KEY="${GEMINI_API_KEY:-$OPENAI_API_KEY}"
-          if [ -z "$API_KEY" ]; then
-            echo "::warning::Neither GEMINI_API_KEY, GEMINI_KEY nor OPENAI_API_KEY is configured in repository secrets."
-            echo "To enable Alibaba OCR reviews, set GEMINI_API_KEY in GitHub secrets."
-            exit 0
-          fi
-
-          export OPENAI_API_KEY="$API_KEY"
-          export OPENAI_BASE_URL="https://generativelanguage.googleapis.com/v1beta/openai/"
-          export OPENAI_MODEL="gemini-3.6-flash"
-
-          echo "Installing @alibaba-group/open-code-review..."
-          npm install -g @alibaba-group/open-code-review
-
-          echo "Running Alibaba Open Code Review..."
-          git fetch origin ${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }} || true
-          ocr review --from origin/${{ github.base_ref }} --to HEAD
+          llm_url: "https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions"
+          llm_auth_token: ${{ secrets.GEMINI_API_KEY || secrets.GEMINI_KEY || secrets.OPENAI_API_KEY }}
+          llm_model: "gemini-3.6-flash"
+          llm_use_anthropic: "false"
+          language: "English"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
   # ---------------------------------------------------------------------------
   # Job 2: The-PR-Agent
