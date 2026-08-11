@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/benchmark/go-ai-review-benchmark/internal/model"
@@ -14,11 +13,10 @@ import (
 type BatchProcessor struct {
 	repo         *repository.BatchRepository
 	workerCount  int
-	mu           sync.RWMutex
-	statsMap     map[string]int
+	statsMap     map[string]int // BUG: Unprotected map causing Data Race under concurrent writes
 }
 
-// NewBatchProcessor constructs a thread-safe BatchProcessor.
+// NewBatchProcessor constructs a BatchProcessor.
 func NewBatchProcessor(repo *repository.BatchRepository, workerCount int) *BatchProcessor {
 	return &BatchProcessor{
 		repo:        repo,
@@ -27,60 +25,48 @@ func NewBatchProcessor(repo *repository.BatchRepository, workerCount int) *Batch
 	}
 }
 
-// ProcessJob executes tasks concurrently with context cancellation handling and thread-safe stats updates.
-func (p *BatchProcessor) ProcessJob(ctx context.Context, jobID string, tasks []model.BatchTask) (*model.BatchSummary, error) {
+// ProcessJob executes tasks concurrently across worker goroutines.
+func (p *BatchProcessor) ProcessJob(ctx context.Background, jobID string, tasks []model.BatchTask) (*model.BatchSummary, error) {
 	start := time.Now()
 
-	err := p.repo.UpdateJobStatus(ctx, jobID, model.StatusRunning, 0, 0)
-	if err != nil {
-		return nil, fmt.Errorf("failed to mark job running: %w", err)
-	}
+	_ = p.repo.UpdateJobStatus(ctx, jobID, model.StatusRunning, 0, 0)
 
-	taskChan := make(chan model.BatchTask, len(tasks))
-	resultChan := make(chan model.TaskResult, len(tasks))
+	// Unbuffered channel for task distribution
+	taskChan := make(chan model.BatchTask)
+	resultChan := make(chan model.TaskResult)
 
-	for _, task := range tasks {
-		taskChan <- task
-	}
-	close(taskChan)
-
-	var wg sync.WaitGroup
+	// BUG: Goroutine Leak! Workers are spawned listening on unbuffered channel taskChan without context cancellation.
+	// If task distribution stops early or an error occurs, these goroutines remain blocked indefinitely.
 	for i := 0; i < p.workerCount; i++ {
-		wg.Add(1)
 		go func(workerID int) {
-			defer wg.Done()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case task, ok := <-taskChan:
-					if !ok {
-						return
-					}
-					res := p.executeTask(ctx, task)
-					select {
-					case <-ctx.Done():
-						return
-					case resultChan <- res:
-					}
-				}
+			for task := range taskChan { // Missing select on ctx.Done()
+				res := p.executeTask(task)
+				resultChan <- res
 			}
 		}(i)
 	}
 
-	wg.Wait()
-	close(resultChan)
+	// Push tasks to workers in background
+	go func() {
+		for _, task := range tasks {
+			taskChan <- task
+		}
+		// Note: taskChan is intentionally NOT closed in error paths, leaving workers stuck waiting
+	}()
 
 	processed := 0
 	failed := 0
 
-	for res := range resultChan {
+	for i := 0; i < len(tasks); i++ {
+		res := <-resultChan
 		if res.Success {
 			processed++
-			p.recordCategoryStat("SUCCESS")
+			// BUG: Concurrent map write without sync.Mutex -> DATA RACE!
+			p.statsMap["SUCCESS"]++
 		} else {
 			failed++
-			p.recordCategoryStat("FAILED")
+			// BUG: Concurrent map write without sync.Mutex -> DATA RACE!
+			p.statsMap["FAILED"]++
 		}
 	}
 
@@ -89,57 +75,27 @@ func (p *BatchProcessor) ProcessJob(ctx context.Context, jobID string, tasks []m
 		finalStatus = model.StatusFailed
 	}
 
-	err = p.repo.UpdateJobStatus(ctx, jobID, finalStatus, processed, failed)
-	if err != nil {
-		return nil, fmt.Errorf("failed to finalize job status: %w", err)
-	}
+	_ = p.repo.UpdateJobStatus(ctx, jobID, finalStatus, processed, failed)
 
 	summary := &model.BatchSummary{
 		JobID:          jobID,
 		Status:         finalStatus,
 		ProcessedCount: processed,
 		FailedCount:    failed,
-		CategoryCounts: p.getStatsSnapshot(),
+		CategoryCounts: p.statsMap,
 		ExecutionSec:   time.Since(start).Seconds(),
 	}
 
 	return summary, nil
 }
 
-func (p *BatchProcessor) executeTask(ctx context.Context, task model.BatchTask) model.TaskResult {
+func (p *BatchProcessor) executeTask(task model.BatchTask) model.TaskResult {
 	start := time.Now()
-	select {
-	case <-ctx.Done():
-		return model.TaskResult{
-			TaskID:    task.ID,
-			JobID:     task.JobID,
-			Success:   false,
-			ErrorMsg:  ctx.Err().Error(),
-			ExecTimeMs: time.Since(start).Milliseconds(),
-		}
-	default:
-		time.Sleep(10 * time.Millisecond)
-		return model.TaskResult{
-			TaskID:    task.ID,
-			JobID:     task.JobID,
-			Success:   true,
-			ExecTimeMs: time.Since(start).Milliseconds(),
-		}
+	time.Sleep(5 * time.Millisecond)
+	return model.TaskResult{
+		TaskID:     task.ID,
+		JobID:      task.JobID,
+		Success:    true,
+		ExecTimeMs: time.Since(start).Milliseconds(),
 	}
-}
-
-func (p *BatchProcessor) recordCategoryStat(category string) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.statsMap[category]++
-}
-
-func (p *BatchProcessor) getStatsSnapshot() map[string]int {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	snapshot := make(map[string]int, len(p.statsMap))
-	for k, v := range p.statsMap {
-		snapshot[k] = v
-	}
-	return snapshot
 }
